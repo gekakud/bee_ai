@@ -1,0 +1,25 @@
+{
+    "device_id": "device-001",
+    "timestamp": "2023-07-20T12:34:56",
+    "temperature": 25.5,
+    "humidity": 60.0,
+    "weight": 5.34,
+    "light": {
+      "lux": 500,
+      "is_dark": false
+    },
+    "pressure": {
+      "value": 1012.5,
+      "unit": "hPa"
+    },
+    "battery_level": 78,
+    "status": "online",
+    "pic":{
+      "pic_id":"pic_2343",
+      "sync":true
+    },
+    "vid":{
+      "vid_id": "vid_57638",
+      "sync":false
+    }
+  }
