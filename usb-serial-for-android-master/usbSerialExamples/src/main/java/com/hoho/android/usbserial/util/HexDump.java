@@ -73,6 +73,46 @@ public class HexDump {
         return result.toString();
     }
 
+
+    public static String dumpText(byte[] array, int offset, int length) {
+        StringBuilder result = new StringBuilder();
+
+        byte[] line = new byte[8];
+        int lineIndex = 0;
+
+        for (int i = offset; i < offset + length; i++) {
+            if (lineIndex == line.length) {
+                for (int j = 0; j < line.length; j++) {
+                    if (line[j] > ' ' && line[j] < '~') {
+                        result.append(new String(line, j, 1));
+                    } else {
+                        result.append(".");
+                    }
+                }
+
+                result.append("\n");
+                lineIndex = 0;
+            }
+
+            byte b = array[i];
+            line[lineIndex++] = b;
+        }
+
+        for (int i = 0; i < (line.length - lineIndex); i++) {
+            result.append("   ");
+        }
+        for (int i = 0; i < lineIndex; i++) {
+            if (line[i] > ' ' && line[i] < '~') {
+                result.append(new String(line, i, 1));
+            } else {
+                result.append(".");
+            }
+        }
+
+        return result.toString();
+    }
+
+
     public static String toHexString(byte b) {
         return toHexString(toByteArray(b));
     }

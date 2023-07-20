@@ -42,6 +42,9 @@ import java.util.EnumSet;
 
 public class TerminalFragment extends Fragment implements SerialInputOutputManager.Listener {
 
+    static float MaxWeight = 0;
+    static float MinWeight = 0;
+
     private enum UsbPermission { Unknown, Requested, Granted, Denied }
 
     private static final String INTENT_ACTION_GRANT_USB = BuildConfig.APPLICATION_ID + ".GRANT_USB";
@@ -290,12 +293,44 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         }
     }
 
-    private void receive(byte[] data) {
+  /*  private void receive(byte[] data) {
         SpannableStringBuilder spn = new SpannableStringBuilder();
         spn.append("receive " + data.length + " bytes\n");
         if(data.length > 0)
             spn.append(HexDump.dumpHexString(data)).append("\n");
         receiveText.append(spn);
+    }*/
+
+    private float extractWeightFromData(String data) {
+        // Assuming the weight value is in the format XX.Y.Kg
+        // Extract the numeric part of the weight string
+        String weightString = data.split(" ")[0];
+        float weight = 0.0f;
+
+        try {
+            weight = Float.parseFloat(weightString);
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+        }
+
+        return weight;
+    }
+    private void receive(byte[] data) {
+        SpannableStringBuilder spn = new SpannableStringBuilder();
+        spn.append("receive " + data.length + " bytes\n");
+        if (data.length > 0) {
+            spn.append(HexDump.dumpText(data, 0, 8)).append("\n");
+            // Extract the weight value from the received data
+            float weight = extractWeightFromData(new String(data));
+            if (weight > MaxWeight)
+                MaxWeight = weight;
+            else if(weight < MinWeight)
+                MinWeight = weight;
+        }
+   //     receiveText.append(spn);
+        spn.append("Max weight = " + MaxWeight + "\n");
+        spn.append("Min weight = " + MinWeight);
+        receiveText.setText(spn);
     }
 
     void status(String str) {
