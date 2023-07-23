@@ -2,12 +2,23 @@ from flask import Flask, render_template, request, jsonify
 import pymongo
 from bson import json_util
 
+#  ALL CONFIGS
+host_url = '127.0.0.1'
+
+DEBUG_MODE = False
+
+if DEBUG_MODE:
+    uri = 'mongodb://localhost:27017/'
+else:
+    uri = "mongodb+srv://bee_admin:bee_admin_pass@atlascluster.d85negs.mongodb.net/?retryWrites=true&w=majority"
+
+
 app = Flask(__name__)
 
 # Connect to the MongoDB server
-client = pymongo.MongoClient('mongodb://localhost:27017/')
-db = client['mydatabase']  # Replace 'mydatabase' with your desired database name
-collection = db['mycollection']  # Replace 'mycollection' with your desired collection name
+client = pymongo.MongoClient(uri)
+db = client['bee_db_dev']  # Replace 'mydatabase' with your desired database name
+collection = db['bee_metadata_col']  # Replace 'mycollection' with your desired collection name
 
 @app.route('/')
 def index():
