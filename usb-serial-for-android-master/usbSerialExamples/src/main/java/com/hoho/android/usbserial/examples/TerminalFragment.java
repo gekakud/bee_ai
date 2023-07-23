@@ -36,14 +36,26 @@ import com.hoho.android.usbserial.driver.UsbSerialProber;
 import com.hoho.android.usbserial.util.HexDump;
 import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
+import org.json.JSONObject;
+
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.EnumSet;
+import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class TerminalFragment extends Fragment implements SerialInputOutputManager.Listener {
 
     static float MaxWeight = 0;
     static float MinWeight = 0;
+
+    static float CurrWeight = 0;
 
     private enum UsbPermission { Unknown, Requested, Granted, Denied }
 
@@ -63,6 +75,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private UsbSerialPort usbSerialPort;
     private UsbPermission usbPermission = UsbPermission.Unknown;
     private boolean connected = false;
+
+    private Timer weightTimer;
+    private TimerTask weightTimerTask;
 
     public TerminalFragment() {
         broadcastReceiver = new BroadcastReceiver() {
@@ -186,6 +201,76 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         });
     }
 
+    public String getCurrentDateTime() {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
+        return dateFormat.format(new Date());
+    }
+
+    private void sendDataToAPI() {
+        try {
+            // Create the JSON payload
+            // Create the JSON payload
+            JSONObject jsonPayload = new JSONObject();
+            jsonPayload.put("device_id", "device-001");
+            jsonPayload.put("timestamp", getCurrentDateTime());
+            jsonPayload.put("temperature", 25.5);
+            jsonPayload.put("humidity", 60.0);
+            jsonPayload.put("weight", CurrWeight);
+            JSONObject lightObject = new JSONObject();
+            lightObject.put("lux", 500);
+            lightObject.put("is_dark", false);
+            jsonPayload.put("light", lightObject);
+            JSONObject pressureObject = new JSONObject();
+            pressureObject.put("value", 1012.5);
+            pressureObject.put("unit", "hPa");
+            jsonPayload.put("pressure", pressureObject);
+            jsonPayload.put("battery_level", 78);
+            jsonPayload.put("status", "online");
+            JSONObject picObject = new JSONObject();
+            picObject.put("pic_id", "");
+            picObject.put("sync", false);
+            jsonPayload.put("pic", picObject);
+            JSONObject vidObject = new JSONObject();
+            vidObject.put("vid_id", "");
+            vidObject.put("sync", false);
+            jsonPayload.put("vid", vidObject);
+
+
+            // Create the URL object for the API endpoint
+            URL url = new URL("http://34.165.42.165:5000/api/data");
+
+            // Create the HttpURLConnection object
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+            // Set the request method to POST
+            connection.setRequestMethod("POST");
+
+            // Set the Content-Type header to specify JSON data
+            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+
+            // Enable output and set the payload
+            connection.setDoOutput(true);
+            OutputStream outputStream = connection.getOutputStream();
+            outputStream.write(jsonPayload.toString().getBytes("UTF-8"));
+            outputStream.close();
+
+            // Get the response code
+            int responseCode = connection.getResponseCode();
+
+            // Handle the response code (e.g., check if the request was successful)
+
+            // Close the connection
+            connection.disconnect();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendDataToServer(){
+        if (connected)
+           sendDataToAPI();
+//
+    }
     /*
      * Serial + UI
      */
@@ -238,6 +323,16 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             status("connected");
             connected = true;
             controlLines.start();
+
+            // starting timer
+            weightTimer = new Timer();
+            weightTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    sendDataToServer();
+                }
+            },100, 3000);
+
         } catch (Exception e) {
             status("connection failed: " + e.getMessage());
             disconnect();
@@ -322,6 +417,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             spn.append(HexDump.dumpText(data, 0, 8)).append("\n");
             // Extract the weight value from the received data
             float weight = extractWeightFromData(new String(data));
+            CurrWeight = weight;
             if (weight > MaxWeight)
                 MaxWeight = weight;
             else if(weight < MinWeight)
@@ -340,7 +436,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     }
 
     class ControlLines {
-        private static final int refreshInterval = 200; // msec
+        private static final int refreshInterval = 2000; // msec
 
         private final Runnable runnable;
         private final ToggleButton rtsBtn, ctsBtn, dtrBtn, dsrBtn, cdBtn, riBtn;

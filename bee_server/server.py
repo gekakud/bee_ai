@@ -36,4 +36,6 @@ def find_by_device_id():
     return jsonify(response_data)
 
 if __name__ == '__main__':
-    app.run()
+    host = '192.168.1.22'
+    port = 5000
+    app.run(host=host, port=5000)
