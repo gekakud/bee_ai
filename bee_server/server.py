@@ -10,6 +10,7 @@ DEBUG_MODE = False
 if DEBUG_MODE:
     uri = 'mongodb://localhost:27017/'
 else:
+    host_url = '0.0.0.0'
     uri = "mongodb+srv://bee_admin:bee_admin_pass@atlascluster.d85negs.mongodb.net/?retryWrites=true&w=majority"
 
 
@@ -47,6 +48,5 @@ def find_by_device_id():
     return jsonify(response_data)
 
 if __name__ == '__main__':
-    host = '192.168.1.22'
     port = 5000
-    app.run(host=host, port=5000)
+    app.run(host=host_url, port=5000)
