@@ -1,0 +1,14 @@
+# install dependencies
+pip install -r requirements.txt
+
+# run demo
+streamlit run dashboard.py
+
+# run with nohup
+nohup streamlit run dashboard.py --server.port 8501 &
+
+# see and kill procs
+netstat -ltnp | grep -w ':8501'
+kill -9 12345
+
+sudo kill -9 $(sudo lsof -t -i:8501)
