@@ -2,6 +2,7 @@ import streamlit as st
 import pymongo
 from datetime import datetime
 import numpy as np
+from streamlit_echarts import st_echarts
 
 mongo_uri = "mongodb+srv://bee_admin:bee_admin_pass@atlascluster.d85negs.mongodb.net/?retryWrites=true&w=majority"
 
@@ -36,18 +37,21 @@ def convert_and_get_weight_data():
     timestamps = []
     weights = []
     for record in cursor:
-        timestamp = datetime.fromisoformat(record['timestamp'])
+        timestamp = record['timestamp']
         weight = record['weight']
         timestamps.append(timestamp)
         weights.append(weight)
 
     # Convert lists to NumPy arrays
-    timestamps_array = np.array(timestamps)
-    weights_array = np.array(weights)
+    # timestamps_array = np.array(timestamps)
+    # weights_array = np.array(weights)
 
-    return timestamps_array, weights_array
+    # return timestamps_array, weights_array
+    return weights, timestamps
 
 with st.sidebar:
+    st.header('Bee dashboard')
+    st.image('./resources/log.jpg')
     all_hives = get_all_device_ids()
     hive_selection = st.selectbox('Choose hive', options=all_hives)
     
@@ -57,5 +61,15 @@ if hive_selection:
     # print(hive_data)
     timestamps, weights = convert_and_get_weight_data()
 
-    st.line_chart(weights, use_container_width=True)
-    
+    option = {
+        "title": {"text": "Weight distribution"},
+        "tooltip": {"trigger": "axis"},
+        "xAxis": {
+            "type": "category",
+            "data": weights,
+        },
+        "yAxis": {"type": "value"},
+        "series": [{"data": timestamps, "type": "line"}],
+    }
+    # st.line_chart(weights, use_container_width=True)
+    st_echarts(options=option, height="400px")
