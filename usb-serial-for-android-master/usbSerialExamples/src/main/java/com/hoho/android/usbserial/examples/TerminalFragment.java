@@ -1,25 +1,34 @@
 package com.hoho.android.usbserial.examples;
 
+import static android.content.ContentValues.TAG;
+
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.Camera;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
+import android.media.MediaRecorder;
+import android.net.Uri;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
-import android.text.method.ScrollingMovementMethod;
 import android.text.style.ForegroundColorSpan;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -38,6 +47,7 @@ import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
 import org.json.JSONObject;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -46,14 +56,18 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
+
 
 public class TerminalFragment extends Fragment implements SerialInputOutputManager.Listener {
 
     static float MaxWeight = 0;
     static float MinWeight = 0;
+
+    static float CurrBattery = 0;
 
     static float CurrWeight = 0;
 
@@ -79,6 +93,36 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private Timer weightTimer;
     private TimerTask weightTimerTask;
 
+    private Uri videoUri;
+    private Handler captureHandler = new Handler();
+    private Runnable captureRunnable = this::startVideoRecording;
+
+    // MediaRecorder variables
+    private MediaRecorder mediaRecorder;
+    private String videoFilePath = "";
+    private Camera camera;
+    private SurfaceView mPreview;
+
+    private SurfaceHolder mPreviewHolder;
+
+
+    private boolean isRecording = false;
+
+    // Constants for video recording
+    private static final int RECORDING_INTERVAL_MINUTES = 1; // Replace YY with desired interval in minutes
+    private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 20 * 1000;
+    private static final int RECORDING_DURATION_SECONDS = 10; // Replace XX with desired recording duration in seconds
+
+
+    private Handler recordingHandler = new Handler();
+    private Runnable recordingRunnable = new Runnable() {
+        @Override
+        public void run() {
+            startVideoRecording();
+            recordingHandler.postDelayed(this, RECORDING_INTERVAL_MS);
+        }
+    };
+
     public TerminalFragment() {
         broadcastReceiver = new BroadcastReceiver() {
             @Override
@@ -90,8 +134,173 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
                 }
             }
         };
+
         mainLooper = new Handler(Looper.getMainLooper());
     }
+    // Declare batteryReceiver as a class member
+    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
+                int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                if (level >= 0 && scale > 0) {
+                    CurrBattery = (float) (level * 100) / scale;
+                }
+            }
+        }
+    };
+
+
+
+   private boolean prepareVideoRecorder() {
+        mediaRecorder = new MediaRecorder();
+
+        // Step 1: Unlock and set camera to MediaRecorder
+        camera.unlock();
+        mediaRecorder.setCamera(camera);
+
+        // Step 2: Set the audio and video sources
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+        mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+
+        // Step 3: Set the video output format and encoding parameters
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+        mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT);
+        mediaRecorder.setVideoEncodingBitRate(10000000); // Adjust as per your requirement
+        mediaRecorder.setVideoFrameRate(30); // Adjust as per your requirement
+
+        // Step 4: Set the output file path
+        videoFilePath = getOutputMediaFile().toString();
+        mediaRecorder.setOutputFile(videoFilePath);
+
+        // Step 5: Set the preview output
+        mediaRecorder.setPreviewDisplay(mPreview.getHolder().getSurface());
+        // Set the maximum recording duration
+        mediaRecorder.setMaxDuration(RECORDING_DURATION_SECONDS * 1000);
+
+        try {
+            mediaRecorder.prepare();
+        } catch (IOException e) {
+            Log.e(TAG, "prepareVideoRecorder() failed: " + e.getMessage());
+            releaseMediaRecorder();
+            return false;
+        }
+
+        return true;
+    }
+
+    private File getOutputMediaFile() {
+        // Implement your logic to generate the file path and file name for the video
+        // For example:
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Bee Hive Monitoring");
+        if (!mediaStorageDir.exists()) {
+            if (!mediaStorageDir.mkdirs()) {
+                Log.e(TAG, "Failed to create directory for saving video.");
+                return null;
+            }
+        }
+        return new File(mediaStorageDir.getPath() + File.separator + "VIDEO_" + timeStamp + ".mp4");
+    }
+
+    private boolean safeCameraOpen(int id) {
+        boolean qOpened = false;
+        try {
+            releaseCameraAndPreview();
+            camera = Camera.open(id);
+            qOpened = (camera != null);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to open Camera");
+            e.printStackTrace();
+        }
+        return qOpened;
+    }
+
+    private void releaseCameraAndPreview() {
+        if (camera != null) {
+            camera.release();
+            camera = null;
+        }
+    }
+
+    private Runnable stopRecordingRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (isRecording) {
+                try {
+                    // Stop the recording and reset the flag.
+                    mediaRecorder.stop();
+                    isRecording = false;
+                } catch (IllegalStateException e) {
+                    // Handle any exceptions while stopping recording.
+                    e.printStackTrace();
+                }
+                // Release the MediaRecorder resources.
+                releaseMediaRecorder();
+            }
+        }
+    };
+
+    private void releaseMediaRecorder() {
+        if (mediaRecorder != null) {
+            mediaRecorder.reset(); // Clear configuration settings.
+            mediaRecorder.release(); // Release the MediaRecorder object.
+            mediaRecorder = null;
+            camera.lock(); // Lock camera for later use (e.g., to restart the preview).
+        }
+    }
+
+
+// ...
+
+    private void startVideoRecording() {
+        if (safeCameraOpen(0)) {
+            if (prepareVideoRecorder()) {
+                try {
+                    mediaRecorder.start();
+                    isRecording = true;
+
+                    // Schedule stopping the recording after XX seconds
+                    Log.d("MyApp", "Before postDelayed");
+                    recordingHandler.postDelayed(stopRecordingRunnable, RECORDING_DURATION_SECONDS * 1000);
+                    Log.d("MyApp", "After postDelayed");
+                } catch (IllegalStateException e) {
+                    // This exception will be thrown if the MediaRecorder is not in a valid state.
+                    // Possible reasons include an improperly configured MediaRecorder or an invalid state transition.
+                    Log.e(TAG, "MediaRecorder start failed: " + e.getMessage());
+                    e.printStackTrace();
+                    // Handle the error gracefully. You can show an error message to the user,
+                    // disable the recording functionality, or take any other appropriate action.
+                    // For example, you might want to release the MediaRecorder and reset the recording state.
+
+                    releaseMediaRecorder();
+                    releaseCameraAndPreview();
+                    // Handle recording start failure
+                } catch (Exception e) {
+                    // This will catch any other exceptions that may be thrown during video recording.
+                    // Handle the error as needed.
+                    Log.e(TAG, "Error during video recording: " + e.getMessage());
+                    e.printStackTrace();
+                    // Handle the error gracefully. You can show an error message to the user,
+                    // disable the recording functionality, or take any other appropriate action.
+                    // For example, you might want to release the MediaRecorder and reset the recording state.
+
+                    releaseMediaRecorder();
+                    releaseCameraAndPreview();
+                    // Handle recording start failure
+                }
+            } else {
+                releaseMediaRecorder();
+                releaseCameraAndPreview();
+                // Handle recording preparation failure
+            }
+        } else {
+            // Handle camera open failure
+        }
+    }
+
 
     /*
      * Lifecycle
@@ -110,12 +319,51 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     @Override
     public void onResume() {
         super.onResume();
+        getActivity().registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         getActivity().registerReceiver(broadcastReceiver, new IntentFilter(INTENT_ACTION_GRANT_USB));
+
+        // Start the video recording loop
+        recordingHandler.post(recordingRunnable);
 
         if(usbPermission == UsbPermission.Unknown || usbPermission == UsbPermission.Granted)
             mainLooper.post(this::connect);
     }
 
+    // Add the getOptimalPreviewSize method
+    private Camera.Size getOptimalPreviewSize(List<Camera.Size> sizes, int width, int height) {
+        final double ASPECT_TOLERANCE = 0.1;
+        double targetRatio = (double) width / height;
+
+        if (sizes == null) return null;
+
+        Camera.Size optimalSize = null;
+        double minDiff = Double.MAX_VALUE;
+
+        int targetHeight = height;
+
+        // Try to find an size match aspect ratio and size
+        for (Camera.Size size : sizes) {
+            double ratio = (double) size.width / size.height;
+            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE) continue;
+            if (Math.abs(size.height - targetHeight) < minDiff) {
+                optimalSize = size;
+                minDiff = Math.abs(size.height - targetHeight);
+            }
+        }
+
+        // Cannot find the one match the aspect ratio, ignore the requirement
+        if (optimalSize == null) {
+            minDiff = Double.MAX_VALUE;
+            for (Camera.Size size : sizes) {
+                if (Math.abs(size.height - targetHeight) < minDiff) {
+                    optimalSize = size;
+                    minDiff = Math.abs(size.height - targetHeight);
+                }
+            }
+        }
+
+        return optimalSize;
+    }
     @Override
     public void onPause() {
         if(connected) {
@@ -123,6 +371,10 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             disconnect();
         }
         getActivity().unregisterReceiver(broadcastReceiver);
+        getActivity().unregisterReceiver(batteryReceiver);
+        // Stop the video capture task and any ongoing video recording
+       // stopVideoCaptureTask();
+
         super.onPause();
     }
 
@@ -130,23 +382,74 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
      * UI
      */
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_terminal, container, false);
-        receiveText = view.findViewById(R.id.receive_text);                          // TextView performance decreases with number of spans
-        receiveText.setTextColor(getResources().getColor(R.color.colorRecieveText)); // set as default color to reduce number of spans
-        receiveText.setMovementMethod(ScrollingMovementMethod.getInstance());
-        TextView sendText = view.findViewById(R.id.send_text);
-        View sendBtn = view.findViewById(R.id.send_btn);
-        sendBtn.setOnClickListener(v -> send(sendText.getText().toString()));
-        View receiveBtn = view.findViewById(R.id.receive_btn);
+
+        // Find views by ID
+        mPreview = view.findViewById(R.id.surface_view);
+
+        // Initialize the receive_text TextView
+        receiveText = view.findViewById(R.id.receive_text);
+
+        // Other views initialization here...
+
+        // Setup camera preview
+        mPreviewHolder = mPreview.getHolder();
+        mPreviewHolder.addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                try {
+                    // Release the camera if it is already opened
+                    if (camera != null) {
+                        camera.release();
+                        camera = null;
+                    }
+
+                    // Open the camera
+                    camera = camera.open();
+   //                 camera.setDisplayOrientation(90);
+
+                    // Set the camera parameters
+                    Camera.Parameters parameters = camera.getParameters();
+                    Camera.Size previewSize = getOptimalPreviewSize(parameters.getSupportedPreviewSizes(), mPreview.getWidth(), mPreview.getHeight());
+                    parameters.setPreviewSize(previewSize.width, previewSize.height);
+                    camera.setParameters(parameters);
+
+                    // Set the camera preview display
+                    camera.setPreviewDisplay(mPreviewHolder);
+                    camera.startPreview();
+
+                } catch (IOException e) {
+                    Log.e(TAG, "Error setting up camera preview: " + e.getMessage());
+                    Toast.makeText(getContext(), "Error setting up camera preview!", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                // Empty. The surface will be recreated when needed.
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                // Release the camera when the surface is destroyed
+                if (camera != null) {
+                    camera.stopPreview();
+                    camera.release();
+                    camera = null;
+                }
+            }
+        });
+
+        // Your existing code here...
+        // Initialize the ControlLines object
         controlLines = new ControlLines(view);
-        if(withIoManager) {
-            receiveBtn.setVisibility(View.GONE);
-        } else {
-            receiveBtn.setOnClickListener(v -> read());
-        }
+
+
         return view;
     }
+
 
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, MenuInflater inflater) {
@@ -224,14 +527,18 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             pressureObject.put("value", 1012.5);
             pressureObject.put("unit", "hPa");
             jsonPayload.put("pressure", pressureObject);
-            jsonPayload.put("battery_level", 78);
+            jsonPayload.put("battery_level", CurrBattery);
             jsonPayload.put("status", "online");
             JSONObject picObject = new JSONObject();
             picObject.put("pic_id", "");
             picObject.put("sync", false);
             jsonPayload.put("pic", picObject);
             JSONObject vidObject = new JSONObject();
-            vidObject.put("vid_id", "");
+            if (videoFilePath.length() > 1)
+                vidObject.put("vid_id",videoFilePath );
+            else
+                vidObject.put("vid_id","" );
+
             vidObject.put("sync", false);
             jsonPayload.put("vid", vidObject);
 
@@ -341,7 +648,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     private void disconnect() {
         connected = false;
-        controlLines.stop();
+        if (controlLines != null)
+            controlLines.stop();
+
         if(usbIoManager != null) {
             usbIoManager.setListener(null);
             usbIoManager.stop();
@@ -364,7 +673,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             spn.append("send " + data.length + " bytes\n");
             spn.append(HexDump.dumpHexString(data)).append("\n");
             spn.setSpan(new ForegroundColorSpan(getResources().getColor(R.color.colorSendText)), 0, spn.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            receiveText.append(spn);
+            if (receiveText != null)
+                receiveText.append(spn);
+
             usbSerialPort.write(data, WRITE_WAIT_MILLIS);
         } catch (Exception e) {
             onRunError(e);
@@ -388,13 +699,6 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         }
     }
 
-  /*  private void receive(byte[] data) {
-        SpannableStringBuilder spn = new SpannableStringBuilder();
-        spn.append("receive " + data.length + " bytes\n");
-        if(data.length > 0)
-            spn.append(HexDump.dumpHexString(data)).append("\n");
-        receiveText.append(spn);
-    }*/
 
     private float extractWeightFromData(String data) {
         // Assuming the weight value is in the format XX.Y.Kg
@@ -423,16 +727,19 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             else if(weight < MinWeight)
                 MinWeight = weight;
         }
-   //     receiveText.append(spn);
         spn.append("Max weight = " + MaxWeight + "\n");
-        spn.append("Min weight = " + MinWeight);
-        receiveText.setText(spn);
+        spn.append("Min weight = " + MinWeight + "\n");
+        spn.append("Battery = " + CurrBattery);
+        if (receiveText != null)
+           receiveText.setText(spn);
     }
 
     void status(String str) {
         SpannableStringBuilder spn = new SpannableStringBuilder(str+'\n');
         spn.setSpan(new ForegroundColorSpan(getResources().getColor(R.color.colorStatusText)), 0, spn.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-        receiveText.append(spn);
+        if (receiveText != null)
+            receiveText.append(spn);
+
     }
 
     class ControlLines {

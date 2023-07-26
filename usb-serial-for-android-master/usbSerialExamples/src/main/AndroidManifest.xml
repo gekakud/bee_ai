@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- mipmap/ic_launcher created with Android Studio -> New -> Image Asset using @color/colorPrimary and USB clip art -->
     <application
         android:usesCleartextTraffic="true"
@@ -13,6 +21,7 @@
              If you would start another activity in the app, e.g. Android Settings
              then you should use singleTask, else a new MainActivity would be started
              when the settings activity is currently shown -->
+
         <activity
             android:name=".MainActivity"
             android:launchMode="singleTask"
