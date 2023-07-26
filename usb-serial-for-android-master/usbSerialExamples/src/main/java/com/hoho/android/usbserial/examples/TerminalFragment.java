@@ -48,6 +48,7 @@ import com.hoho.android.usbserial.util.SerialInputOutputManager;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -102,16 +103,59 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private String videoFilePath = "";
     private Camera camera;
     private SurfaceView mPreview;
-
     private SurfaceHolder mPreviewHolder;
+
+    private boolean isTakingPictures = false;
+    private Handler pictureHandler = new Handler(Looper.getMainLooper());
+    private int intervalInSeconds = 2 * 1; // Take a picture every 1 minutes
 
 
     private boolean isRecording = false;
 
     // Constants for video recording
-    private static final int RECORDING_INTERVAL_MINUTES = 1; // Replace YY with desired interval in minutes
-    private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 20 * 1000;
-    private static final int RECORDING_DURATION_SECONDS = 10; // Replace XX with desired recording duration in seconds
+    private static final int RECORDING_INTERVAL_MINUTES = 10; // Replace YY with desired interval in minutes
+    private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 60 * 1000;
+    private static final int RECORDING_DURATION_SECONDS = 2; // Replace XX with desired recording duration in seconds
+
+
+    private Runnable takePictureRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (isTakingPictures) {
+                takePicture();
+                pictureHandler.postDelayed(this, intervalInSeconds * 1000);
+            }
+        }
+    };
+
+    private void takePicture() {
+        if (camera != null) {
+            camera.takePicture(null, null, pictureCallback);
+        }
+    }
+
+    private Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
+        @Override
+        public void onPictureTaken(byte[] data, Camera camera) {
+            // Save the image data to a file
+            File pictureFile = getOutputMediaFile(false);
+            if (pictureFile != null) {
+                try {
+                    FileOutputStream fos = new FileOutputStream(pictureFile);
+                    fos.write(data);
+                    fos.close();
+                    Log.d("YourFragment", "Picture saved: " + pictureFile.getAbsolutePath());
+                } catch (IOException e) {
+                    e.printStackTrace(); // Print the stack trace for debugging
+                }
+            }
+
+            // Restart the preview to continue taking pictures
+            camera.startPreview();
+        }
+    };
+
+
 
 
     private Handler recordingHandler = new Handler();
@@ -168,11 +212,11 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
         mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
         mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT);
-        mediaRecorder.setVideoEncodingBitRate(10000000); // Adjust as per your requirement
-        mediaRecorder.setVideoFrameRate(30); // Adjust as per your requirement
+        mediaRecorder.setVideoEncodingBitRate(20000000); // Adjust as per your requirement
+        mediaRecorder.setVideoFrameRate(60); // Adjust as per your requirement
 
         // Step 4: Set the output file path
-        videoFilePath = getOutputMediaFile().toString();
+        videoFilePath = getOutputMediaFile(true).toString();
         mediaRecorder.setOutputFile(videoFilePath);
 
         // Step 5: Set the preview output
@@ -191,18 +235,27 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         return true;
     }
 
-    private File getOutputMediaFile() {
+    private File getOutputMediaFile(boolean VidFile) {
         // Implement your logic to generate the file path and file name for the video
         // For example:
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Bee Hive Monitoring");
+        File mediaStorageDir;
+        if (VidFile)
+            mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Bee Hive Monitoring");
+        else
+            mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Bee Hive Monitoring");
+
         if (!mediaStorageDir.exists()) {
             if (!mediaStorageDir.mkdirs()) {
-                Log.e(TAG, "Failed to create directory for saving video.");
+                Log.e(TAG, "Failed to create directory for saving video/picture.");
                 return null;
             }
         }
-        return new File(mediaStorageDir.getPath() + File.separator + "VIDEO_" + timeStamp + ".mp4");
+        if (VidFile == true)
+            return new File(mediaStorageDir.getPath() + File.separator + "VIDEO_" + timeStamp + ".mp4");
+        else
+            return new File(mediaStorageDir.getPath() + File.separator + "PIC_" + timeStamp + ".jpg");
+
     }
 
     private boolean safeCameraOpen(int id) {
@@ -325,6 +378,11 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         // Start the video recording loop
         recordingHandler.post(recordingRunnable);
 
+        // Start taking pictures when the fragment is resumed
+        isTakingPictures = true;
+        pictureHandler.post(takePictureRunnable);
+
+
         if(usbPermission == UsbPermission.Unknown || usbPermission == UsbPermission.Granted)
             mainLooper.post(this::connect);
     }
@@ -374,6 +432,8 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         getActivity().unregisterReceiver(batteryReceiver);
         // Stop the video capture task and any ongoing video recording
        // stopVideoCaptureTask();
+        isTakingPictures = false;
+        pictureHandler.removeCallbacks(takePictureRunnable);
 
         super.onPause();
     }
