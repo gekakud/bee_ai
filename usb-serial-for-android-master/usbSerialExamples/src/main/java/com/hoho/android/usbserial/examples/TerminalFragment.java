@@ -151,6 +151,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             }
 
             // Restart the preview to continue taking pictures
+            camera.setDisplayOrientation(90);
             camera.startPreview();
         }
     };
@@ -468,7 +469,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
                     // Open the camera
                     camera = camera.open();
-   //                 camera.setDisplayOrientation(90);
+                    camera.setDisplayOrientation(90);
 
                     // Set the camera parameters
                     Camera.Parameters parameters = camera.getParameters();
@@ -478,6 +479,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
                     // Set the camera preview display
                     camera.setPreviewDisplay(mPreviewHolder);
+                    camera.setDisplayOrientation(90);
                     camera.startPreview();
 
                 } catch (IOException e) {

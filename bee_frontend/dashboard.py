@@ -29,47 +29,70 @@ def get_all_device_ids():
 
     return device_ids
 
-def convert_and_get_weight_data():
-    # Retrieve all records from the collection
+def convert_and_get_data():
     cursor = collection.find({})
-
-    # Extract timestamp and weight from each record and store in lists
-    timestamps = []
-    weights = []
+    timestamps, weights, temperatures, humidities = [], [], [], []
     for record in cursor:
         timestamp = record['timestamp']
         weight = record['weight']
+        temperature = record['temperature']  # Assume you have this field
+        humidity = record['humidity']  # Assume you have this field
         timestamps.append(timestamp)
         weights.append(weight)
+        temperatures.append(temperature)
+        humidities.append(humidity)
+    
+    Rweights = [round(w, 2) for w in weights]
+    Rtemperatures = [round(t, 2) for t in temperatures]
+    Rhumidities = [round(h, 2) for h in humidities]
 
-    # Convert lists to NumPy arrays
-    # timestamps_array = np.array(timestamps)
-    # weights_array = np.array(weights)
-
-    # return timestamps_array, weights_array
-    return weights, timestamps
+    return Rweights, timestamps, Rtemperatures, Rhumidities
 
 with st.sidebar:
-    st.header('Bee dashboard')
+    st.header('Yaniv\'s Bee Hive')
     st.image('./resources/log.jpg')
     all_hives = get_all_device_ids()
     hive_selection = st.selectbox('Choose hive', options=all_hives)
     
 if hive_selection:
     hive_data = load_records_by_device_id(hive_selection)
-    all_records_list = convert_and_get_weight_data()
+    all_records_list = convert_and_get_data()
     # print(hive_data)
-    timestamps, weights = convert_and_get_weight_data()
+    weights, timestamps, temperatures, humidities = convert_and_get_data()
 
     option = {
-        "title": {"text": "Weight distribution"},
+        "title": {"text": "Hive Data Distribution"},
         "tooltip": {"trigger": "axis"},
         "xAxis": {
             "type": "category",
-            "data": weights,
+            "data": timestamps,
         },
-        "yAxis": {"type": "value"},
-        "series": [{"data": timestamps, "type": "line"}],
+        "yAxis": [{
+            "type": "value",
+            "name": "Weight",
+            "position": "left"
+        }, {
+            "type": "value",
+            "name": "Temperature",
+            "position": "right",
+        }, {
+            "type": "value",
+            "name": "Humidity",
+            "position": "right",
+            "offset": 60  # You might need to adjust this based on your data and display
+        }],
+        "series": [
+            {"data": weights, "type": "line", "name": "Weight"},
+            {"data": temperatures, "type": "line", "name": "Temperature", "yAxisIndex": 1},
+            {"data": humidities, "type": "line", "name": "Humidity", "yAxisIndex": 2}
+        ],
+        "dataZoom": [{
+            "type": 'slider',
+            "start": 0,
+            "end": 100
+        }],
     }
-    # st.line_chart(weights, use_container_width=True)
+
+
+    #st.line_chart(weights, use_container_width=True)
     st_echarts(options=option, height="400px")
