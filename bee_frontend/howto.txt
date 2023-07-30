@@ -12,3 +12,15 @@ netstat -ltnp | grep -w ':8501'
 kill -9 12345
 
 sudo kill -9 $(sudo lsof -t -i:8501)
+
+# deploy to server:
+1. enter the GCP console and access VM terminal via SSH-in-browser
+2. stop the current streamlit service running on port 8501:
+    - sudo kill -9 $(sudo lsof -t -i:8501)
+3. pull latest changes from GitHub into /home/hivemonitoring1/bee_ai : 
+    - git pull
+4. start a new streamlit service with the latest changes:
+    - cd /home/hivemonitoring1/bee_ai/bee_frontend
+    - nohup streamlit run dashboard.py --server.port 8501 &
+5. close terminal
+6. http://34.165.42.165:8501/
