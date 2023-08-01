@@ -6,6 +6,7 @@
 
 package com.hoho.android.usbserial.util;
 
+import android.location.Location;
 import android.os.Process;
 import android.util.Log;
 
@@ -50,6 +51,10 @@ public class SerialInputOutputManager implements Runnable {
     private final UsbSerialPort mSerialPort;
 
     public interface Listener {
+        void onLocationChanged(Location location);
+
+        void onLocationReceived(Location location);
+
         /**
          * Called when new incoming data is available.
          */

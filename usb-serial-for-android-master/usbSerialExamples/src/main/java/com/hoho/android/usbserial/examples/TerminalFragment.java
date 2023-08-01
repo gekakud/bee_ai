@@ -7,10 +7,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
+import android.location.Location;
 import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.BatteryManager;
@@ -37,6 +39,7 @@ import android.widget.ToggleButton;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
@@ -63,7 +66,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 
-public class TerminalFragment extends Fragment implements SerialInputOutputManager.Listener {
+public class TerminalFragment extends Fragment implements SerialInputOutputManager.Listener, LocationHelper.LocationCallback  {
 
     static float MaxWeight = 0;
     static float MinWeight = 0;
@@ -116,6 +119,78 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private static final int RECORDING_INTERVAL_MINUTES = 10; // Replace YY with desired interval in minutes
     private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 60 * 1000;
     private static final int RECORDING_DURATION_SECONDS = 2; // Replace XX with desired recording duration in seconds
+    private static final int REQUEST_LOCATION_PERMISSION = 1001;
+
+    private LocationHelper locationHelper;
+    private Timer locationUpdateTimer;
+    private TimerTask locationUpdateTask;
+    private static final long LOCATION_UPDATE_INTERVAL = 1000; // Interval in milliseconds (e.g., 10 seconds)
+
+    private double currLatitude = 0.0;
+    private double currLongitude = 0.0;
+
+
+    @Override
+    public void onLocationChanged(Location location) {
+        // This method will be called whenever there is a new location update.
+        // You can access the location data from the 'location' parameter.
+        currLatitude = location.getLatitude();
+        currLongitude = location.getLongitude();
+
+        // Now you can use the latitude and longitude to do whatever you want,
+        // such as displaying them on the screen or sending them to a server.
+        // For example:
+        Log.d("MyApp", "Latitude: " + currLatitude + ", Longitude: " + currLongitude);
+    }
+
+    @Override
+    public void onLocationReceived(Location location) {
+        // This method will be called whenever there is a new location update.
+        // You can access the location data from the 'location' parameter.
+        currLatitude = location.getLatitude();
+        currLongitude = location.getLongitude();
+
+        // Now you can use the latitude and longitude to do whatever you want,
+        // such as displaying them on the screen or sending them to a server.
+        // For example:
+        Log.d("MyApp", "Latitude: " + currLongitude + ", Longitude: " + currLatitude);
+    }
+
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
+
+    // Request location permission
+    private void requestLocationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ActivityCompat.checkSelfPermission(requireContext(), android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                        LOCATION_PERMISSION_REQUEST_CODE);
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, start location updates
+                locationHelper.startLocationUpdates();
+            } else {
+                // Permission denied, handle the case accordingly (e.g., show a message, disable location-related features)
+            }
+        }
+    }
+
+    // Method to check if location permission is granted
+    private boolean checkLocationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            int permissionResult = ActivityCompat.checkSelfPermission(requireContext(), android.Manifest.permission.ACCESS_FINE_LOCATION);
+            return permissionResult == PackageManager.PERMISSION_GRANTED;
+        } else {
+            // If the device's API level is lower than Marshmallow, the permission is granted by default.
+            return true;
+        }
+    }
 
 
     private Runnable takePictureRunnable = new Runnable() {
@@ -133,6 +208,10 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             camera.takePicture(null, null, pictureCallback);
         }
     }
+
+    // Request code for location permission request
+    private static final int REQUEST_LOCATION_PERMISSIONS = 101;
+
 
     private Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
         @Override
@@ -156,6 +235,16 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         }
     };
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // Stop location updates
+        if (locationHelper != null) {
+            locationHelper.stopLocationUpdates();
+        }
+        // Stop the location update timer
+        stopLocationUpdateTimer();
+    }
 
 
 
@@ -368,7 +457,52 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         portNum = getArguments().getInt("port");
         baudRate = getArguments().getInt("baud");
         withIoManager = getArguments().getBoolean("withIoManager");
+
+
+        // Initialize the LocationHelper with the context from the parent Activity and this as the callback listener
+        locationHelper = new LocationHelper(requireContext(), this); // Use 'this' to pass TerminalFragment as the LocationCallback
+
+        // Request location permission
+        requestLocationPermission();
+
+        // Start location updates if the permission is already granted
+        if (checkLocationPermission()) {
+            locationHelper.startLocationUpdates();
+        }
+           // Start the location update timer
+        startLocationUpdateTimer();
     }
+
+
+    private void startLocationUpdateTimer() {
+        if (locationUpdateTimer == null) {
+            locationUpdateTimer = new Timer();
+            locationUpdateTask = new TimerTask() {
+                @Override
+                public void run() {
+                    if (locationHelper != null) {
+                        locationHelper.startLocationUpdates();
+                    }
+                }
+            };
+
+            // Schedule the timer to run at the specified interval
+            locationUpdateTimer.schedule(locationUpdateTask, LOCATION_UPDATE_INTERVAL, LOCATION_UPDATE_INTERVAL);
+        }
+    }
+
+    private void stopLocationUpdateTimer() {
+        if (locationUpdateTimer != null) {
+            locationUpdateTimer.cancel();
+            locationUpdateTimer = null;
+            locationUpdateTask = null;
+        }
+    }
+
+
+
+
+
 
     @Override
     public void onResume() {
@@ -431,6 +565,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         }
         getActivity().unregisterReceiver(broadcastReceiver);
         getActivity().unregisterReceiver(batteryReceiver);
+
         // Stop the video capture task and any ongoing video recording
        // stopVideoCaptureTask();
         isTakingPictures = false;
@@ -595,6 +730,13 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             picObject.put("pic_id", "");
             picObject.put("sync", false);
             jsonPayload.put("pic", picObject);
+
+            JSONObject locObject = new JSONObject();
+            locObject.put("longitude", currLongitude);
+            locObject.put("latitude", currLatitude);
+            jsonPayload.put("location", locObject);
+
+
             JSONObject vidObject = new JSONObject();
             if (videoFilePath.length() > 1)
                 vidObject.put("vid_id",videoFilePath );
@@ -697,7 +839,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             weightTimer = new Timer();
             weightTimer.schedule(new TimerTask() {
                 @Override
-                public void run() {
+                public void run(){
                     sendDataToServer();
                 }
             },100, 3000);

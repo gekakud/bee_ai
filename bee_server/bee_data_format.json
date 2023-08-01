@@ -18,6 +18,10 @@
       "pic_id":"pic_2343",
       "sync":true
     },
+    "location":{
+      "longitude":"32.40",
+      "latitude":"35.106"
+    },
     "vid":{
       "vid_id": "vid_57638",
       "sync":false
