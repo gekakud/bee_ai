@@ -110,7 +110,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     private boolean isTakingPictures = false;
     private Handler pictureHandler = new Handler(Looper.getMainLooper());
-    private int intervalInSeconds = 2 * 1; // Take a picture every 1 minutes
+    private int intervalInSeconds = 7; // Take a picture every 1 minutes
 
 
     private boolean isRecording = false;
@@ -118,13 +118,12 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     // Constants for video recording
     private static final int RECORDING_INTERVAL_MINUTES = 10; // Replace YY with desired interval in minutes
     private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 60 * 1000;
-    private static final int RECORDING_DURATION_SECONDS = 2; // Replace XX with desired recording duration in seconds
-    private static final int REQUEST_LOCATION_PERMISSION = 1001;
+    private static final int RECORDING_DURATION_SECONDS = 5; // Replace XX with desired recording duration in seconds
 
     private LocationHelper locationHelper;
     private Timer locationUpdateTimer;
     private TimerTask locationUpdateTask;
-    private static final long LOCATION_UPDATE_INTERVAL = 1000; // Interval in milliseconds (e.g., 10 seconds)
+    private static final long LOCATION_UPDATE_INTERVAL = 20000; // Interval in milliseconds (e.g., 10 seconds)
 
     private double currLatitude = 0.0;
     private double currLongitude = 0.0;
@@ -208,9 +207,6 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             camera.takePicture(null, null, pictureCallback);
         }
     }
-
-    // Request code for location permission request
-    private static final int REQUEST_LOCATION_PERMISSIONS = 101;
 
 
     private Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {

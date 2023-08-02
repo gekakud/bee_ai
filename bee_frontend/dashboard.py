@@ -2,14 +2,15 @@ import streamlit as st
 import pymongo
 from datetime import datetime
 import numpy as np
+import pandas as pd
 from streamlit_echarts import st_echarts
 
 mongo_uri = "mongodb+srv://bee_admin:bee_admin_pass@atlascluster.d85negs.mongodb.net/?retryWrites=true&w=majority"
 
 # Connect to MongoDB
 client = pymongo.MongoClient(mongo_uri)
-db = client['bee_db_dev']  # Replace 'mydatabase' with your database name
-collection = db['bee_metadata_col']  # Replace 'mycollection' with your collection name
+db = client['bee_db_dev'] 
+collection = db['bee_metadata_col']  
 
 def load_records_by_device_id(device_id):
     # Define the query filter to find records with the given device_id
@@ -31,13 +32,20 @@ def get_all_device_ids():
 
 def convert_and_get_data():
     cursor = collection.find({})
-    timestamps, weights, temperatures, humidities, batterys = [], [], [], [], []
+    timestamps, weights, temperatures, humidities, batterys, locations = [], [], [], [], [], []
     for record in cursor:
         timestamp = record['timestamp']
         weight = record['weight']
-        temperature = record['temperature']  # Assume you have this field
-        humidity = record['humidity']  # Assume you have this field
-        battery = record['battery_level']  # Assume you have this field
+        temperature = record['temperature']  
+        humidity = record['humidity']  
+        battery = record['battery_level'] 
+        if 'location' in record:
+            location = record['location']
+            locations.append(location)
+
+        else:
+            location = None 
+        
         timestamps.append(timestamp)
         weights.append(weight)
         temperatures.append(temperature)
@@ -49,7 +57,7 @@ def convert_and_get_data():
     Rtemperatures = [round(t, 2) for t in temperatures]
     Rhumidities = [round(h, 2) for h in humidities]
 
-    return Rweights, timestamps, Rtemperatures, Rhumidities, batterys
+    return Rweights, timestamps, Rtemperatures, Rhumidities, batterys, locations
 
 with st.sidebar:
     st.header('Yaniv\'s Bee Hive')
@@ -61,7 +69,7 @@ if hive_selection:
     hive_data = load_records_by_device_id(hive_selection)
     all_records_list = convert_and_get_data()
     # print(hive_data)
-    weights, timestamps, temperatures, humidities, batterys = convert_and_get_data()
+    weights, timestamps, temperatures, humidities, batterys, locations = convert_and_get_data()
 
     option = {
         "title": {"text": "Hive Data Distribution"},
@@ -107,9 +115,26 @@ if hive_selection:
         }],
     }
     last_battery_level = batterys[-1] if batterys else None  # Retrieve the last battery level if the list is not empty
-
-    st.sidebar.text(f"**Battery Level for {hive_selection}:** {last_battery_level}%")
-
-
+  
     #st.line_chart(weights, use_container_width=True)
     st_echarts(options=option, height="400px")
+    
+    st.sidebar.metric(label="Battery level", value=f"{last_battery_level}%")
+ 
+    last_location = locations[-1] if locations else None
+    if last_location:
+        df = pd.DataFrame({
+            'lat': [float(last_location["latitude"])],
+            'lon': [float(last_location["longitude"])]
+        })
+    else:
+        df = pd.DataFrame({
+            'lat': [0.0],
+            'lon': [0.0]
+        })        
+    
+        
+    
+    # Display the map
+    st.map(df)
+    
