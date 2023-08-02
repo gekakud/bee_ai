@@ -128,6 +128,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private double currLatitude = 0.0;
     private double currLongitude = 0.0;
 
+    private TextView sendTextView;
+
+
 
     @Override
     public void onLocationChanged(Location location) {
@@ -585,6 +588,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         receiveText = view.findViewById(R.id.receive_text);
 
         // Other views initialization here...
+        // Find the "send_text" view
+        sendTextView = view.findViewById(R.id.send_text);
+
 
         // Setup camera preview
         mPreviewHolder = mPreview.getHolder();
@@ -932,6 +938,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         spn.append("Battery = " + CurrBattery);
         if (receiveText != null)
            receiveText.setText(spn);
+
+        if (sendTextView != null)
+            sendTextView.setText("Weight: " + CurrWeight + " kg");
     }
 
     void status(String str) {
