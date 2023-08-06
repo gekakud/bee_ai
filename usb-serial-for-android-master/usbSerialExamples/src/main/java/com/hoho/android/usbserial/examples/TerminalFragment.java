@@ -75,6 +75,10 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     static float CurrWeight = 0;
 
+    static float CurrTemp = 0;
+
+    static float CurrHumidity = 0;
+
     private enum UsbPermission { Unknown, Requested, Granted, Denied }
 
     private static final String INTENT_ACTION_GRANT_USB = BuildConfig.APPLICATION_ID + ".GRANT_USB";
@@ -110,15 +114,15 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     private boolean isTakingPictures = false;
     private Handler pictureHandler = new Handler(Looper.getMainLooper());
-    private int intervalInSeconds = 7; // Take a picture every 1 minutes
+    private int intervalInSeconds = 7;
 
 
     private boolean isRecording = false;
 
     // Constants for video recording
-    private static final int RECORDING_INTERVAL_MINUTES = 10; // Replace YY with desired interval in minutes
+    private static final int RECORDING_INTERVAL_MINUTES = 10;
     private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 60 * 1000;
-    private static final int RECORDING_DURATION_SECONDS = 5; // Replace XX with desired recording duration in seconds
+    private static final int RECORDING_DURATION_SECONDS = 5; 
 
     private LocationHelper locationHelper;
     private Timer locationUpdateTimer;
@@ -715,8 +719,8 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             JSONObject jsonPayload = new JSONObject();
             jsonPayload.put("device_id", "device-001");
             jsonPayload.put("timestamp", getCurrentDateTime());
-            jsonPayload.put("temperature", 25.5);
-            jsonPayload.put("humidity", 60.0);
+            jsonPayload.put("temperature", CurrTemp);
+            jsonPayload.put("humidity", CurrHumidity);
             jsonPayload.put("weight", CurrWeight);
             JSONObject lightObject = new JSONObject();
             lightObject.put("lux", 500);
@@ -907,9 +911,23 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
 
     private float extractWeightFromData(String data) {
+        int startIndex = data.indexOf("W: ");
+        if (startIndex == -1) {
+            // "Humidity: " not found in the data string, handle the error accordingly
+            return -200.0f;
+        }
+        startIndex += 3;
+        int endIndex = data.indexOf(" Kg", startIndex);
+
+        if (endIndex == -1) {
+            // "Weight: " not found in the data string, handle the error accordingly
+            return -200.0f;
+        }
+
         // Assuming the weight value is in the format XX.Y.Kg
         // Extract the numeric part of the weight string
-        String weightString = data.split(" ")[0];
+        String weightString = data.substring(startIndex, endIndex);
+
         float weight = 0.0f;
 
         try {
@@ -920,27 +938,97 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
         return weight;
     }
+
+    private float extractTemperatureFromData(String data) {
+        int startIndex = data.indexOf("T: ");
+        if (startIndex == -1) {
+            // "Temperature: " not found in the data string, handle the error accordingly
+            return -200.0f;
+        }
+
+        // Assuming the temperature value is in the format "Temperature: XX.X *C"
+        // Extract the numeric part of the temperature string
+        startIndex += 3;
+        int endIndex = data.indexOf(" *C", startIndex);
+
+        if (endIndex == -1) {
+            // " " not found in the data string, handle the error accordingly
+            return -200.0f;
+        }
+
+        String temperatureString = data.substring(startIndex, endIndex);
+        float temperature = 0.0f;
+
+        try {
+            temperature = Float.parseFloat(temperatureString);
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+        }
+
+        return temperature;
+    }
+
+    private float extractHumidityFromData(String data) {
+        int startIndex = data.indexOf("H: ");
+        if (startIndex == -1) {
+            // "Humidity: " not found in the data string, handle the error accordingly
+            return -200.0f;
+        }
+
+        // Assuming the humidity value is in the format "Humidity: XX.X %"
+        // Extract the numeric part of the humidity string
+        startIndex += 3;
+
+        int endIndex = data.indexOf(" %", startIndex);
+        if (endIndex == -1) {
+            // "Humiduty: " not found in the data string, handle the error accordingly
+            return -200.0f;
+        }
+
+        String humidityString = data.substring(startIndex, endIndex);
+        float humidity = 0.0f;
+
+        try {
+            humidity = Float.parseFloat(humidityString);
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+        }
+
+        return humidity;
+    }
+
     private void receive(byte[] data) {
-        SpannableStringBuilder spn = new SpannableStringBuilder();
-        spn.append("receive " + data.length + " bytes\n");
+ //       SpannableStringBuilder spn = new SpannableStringBuilder();
+//        spn.append("receive " + data.length + " bytes\n");
         if (data.length > 0) {
-            spn.append(HexDump.dumpText(data, 0, 8)).append("\n");
+//            spn.append(HexDump.dumpText(data, 0, 8)).append("\n");
             // Extract the weight value from the received data
             float weight = extractWeightFromData(new String(data));
-            CurrWeight = weight;
-            if (weight > MaxWeight)
-                MaxWeight = weight;
-            else if(weight < MinWeight)
-                MinWeight = weight;
+            if (weight != -200.0) {
+                CurrWeight = weight;
+                if (weight > MaxWeight)
+                    MaxWeight = weight;
+                else if (weight < MinWeight)
+                    MinWeight = weight;
+            }
+
+            float temp = extractTemperatureFromData(new String(data));
+            if (temp != -200.0)
+                CurrTemp = temp;
+
+            float humidity = extractHumidityFromData(new String(data));
+            if (humidity != -200.0)
+                CurrHumidity = humidity;
+
         }
-        spn.append("Max weight = " + MaxWeight + "\n");
-        spn.append("Min weight = " + MinWeight + "\n");
-        spn.append("Battery = " + CurrBattery);
-        if (receiveText != null)
-           receiveText.setText(spn);
+  //      spn.append("Max weight = " + MaxWeight + "\n");
+  //      spn.append("Min weight = " + MinWeight + "\n");
+  //      spn.append("Battery = " + CurrBattery);
+ //       if (receiveText != null)
+ //          receiveText.setText(spn);
 
         if (sendTextView != null)
-            sendTextView.setText("Weight: " + CurrWeight + " kg");
+            sendTextView.setText("W: " + CurrWeight + " kg" + "  T: " + CurrTemp + "C" + "  H:" + CurrHumidity);
     }
 
     void status(String str) {
