@@ -36,8 +36,9 @@ def convert_and_get_data():
     for record in cursor:
         timestamp = record['timestamp']
         weight = record['weight']
-        temperature = record['temperature']  
-        humidity = record['humidity']  
+        temperature = record.get('temperature', None)  # Using the get method with a default value
+        humidity = record.get('humidity', None)  # Using the get method with a default value
+
         battery = record['battery_level'] 
         if 'location' in record:
             location = record['location']
@@ -54,8 +55,8 @@ def convert_and_get_data():
     
     # round the results so it will be displayed and viewed easily
     Rweights = [round(w, 2) for w in weights]
-    Rtemperatures = [round(t, 2) for t in temperatures]
-    Rhumidities = [round(h, 2) for h in humidities]
+    Rtemperatures = [round(t, 2) if t is not None else None for t in temperatures]  # Handling None
+    Rhumidities = [round(t, 2) if t is not None else None for t in humidities]  # Handling None
 
     return Rweights, timestamps, Rtemperatures, Rhumidities, batterys, locations
 
@@ -70,13 +71,49 @@ if hive_selection:
     all_records_list = convert_and_get_data()
     # print(hive_data)
     weights, timestamps, temperatures, humidities, batterys, locations = convert_and_get_data()
+    
+    MaxWeight = max(weights)
+    index_of_max_weight = weights.index(MaxWeight)
+    timestamp_of_max_weight = timestamps[index_of_max_weight]
+    
+    MinWeight = min(weights)
+    index_of_min_weight = weights.index(MinWeight)
+    timestamp_of_min_weight = timestamps[index_of_min_weight]
+    
+    MaxTemp = max(temp for temp in temperatures if temp is not None)
+    index_of_max_temp = temperatures.index(MaxTemp)
+    timestamp_of_max_temp = timestamps[index_of_max_temp]
+    
+    MinTemp = min(temp for temp in temperatures if temp is not None)
+    index_of_min_temp = temperatures.index(MinTemp)
+    timestamp_of_min_temp = timestamps[index_of_min_temp]
+    
+
+    content = f"""
+    <div style="line-height:1.5;">
+    The maximum weight is {MaxWeight} Kg, Occurred at: {timestamp_of_max_weight}<br>
+    The minimum weight is {MinWeight} Kg, Occurred at: {timestamp_of_min_weight}<br>
+    The maximum temp is {MaxTemp} °C, Occurred at: {timestamp_of_max_temp}<br>
+    The minimum temp is {MinTemp} °C, Occurred at: {timestamp_of_min_temp}
+    </div>
+    """
+
+    st.markdown(content, unsafe_allow_html=True)
+
+
+    # Assuming timestamps is a list of string timestamps
+    formatted_timestamps = [datetime.strptime(value, '%Y-%m-%dT%H:%M:%S').strftime('%d-%m-%Y\n%H:%M:%S') for value in timestamps]
+
 
     option = {
         "title": {"text": "Hive Data Distribution"},
         "tooltip": {"trigger": "axis"},
         "xAxis": {
             "type": "category",
-            "data": timestamps,
+            "data": formatted_timestamps,
+            "axisLabel": {
+                "rotate": 0,  # Rotation of the labels, can be adjusted
+            }
         },
         "yAxis": [{
             "type": "value",

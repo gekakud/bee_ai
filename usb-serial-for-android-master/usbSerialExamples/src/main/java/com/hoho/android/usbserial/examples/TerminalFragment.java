@@ -75,9 +75,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     static float CurrWeight = 0;
 
-    static float CurrTemp = 0;
+    static float CurrTemp = -200;
 
-    static float CurrHumidity = 0;
+    static float CurrHumidity = -200;
 
     private enum UsbPermission { Unknown, Requested, Granted, Denied }
 
