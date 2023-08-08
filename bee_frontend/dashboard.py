@@ -104,7 +104,6 @@ if hive_selection:
     # Assuming timestamps is a list of string timestamps
     formatted_timestamps = [datetime.strptime(value, '%Y-%m-%dT%H:%M:%S').strftime('%d-%m-%Y\n%H:%M:%S') for value in timestamps]
 
-
     option = {
         "title": {"text": "Hive Data Distribution"},
         "tooltip": {"trigger": "axis"},
@@ -140,7 +139,7 @@ if hive_selection:
         "legend": {
             "data": ["Weight", "Temperature", "Humidity"],
             "textStyle": {
-                "color": "#FFFFFF"  # White color
+                "color": "#888888"  # gray color
             }
         },
 

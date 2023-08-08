@@ -719,8 +719,10 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
             JSONObject jsonPayload = new JSONObject();
             jsonPayload.put("device_id", "device-001");
             jsonPayload.put("timestamp", getCurrentDateTime());
-            jsonPayload.put("temperature", CurrTemp);
-            jsonPayload.put("humidity", CurrHumidity);
+            if (CurrTemp != -200)
+                jsonPayload.put("temperature", CurrTemp);
+            if (CurrHumidity != -200)
+                jsonPayload.put("humidity", CurrHumidity);
             jsonPayload.put("weight", CurrWeight);
             JSONObject lightObject = new JSONObject();
             lightObject.put("lux", 500);
