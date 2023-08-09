@@ -4,6 +4,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from streamlit_echarts import st_echarts
+from g_bucket_service import get_image_urls
+
 
 mongo_uri = "mongodb+srv://bee_admin:bee_admin_pass@atlascluster.d85negs.mongodb.net/?retryWrites=true&w=majority"
 
@@ -179,7 +181,7 @@ if hive_selection:
   
     #st.line_chart(weights, use_container_width=True)
   #  st_echarts(options=option, height="400px")
-    
+
     st.sidebar.metric(label="Battery level", value=f"{last_battery_level}%")
  
     last_location = locations[-1] if locations else None
