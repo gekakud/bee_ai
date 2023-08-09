@@ -1,2 +1,4 @@
 flask
 pymongo
+google-cloud
+google-cloud-storage

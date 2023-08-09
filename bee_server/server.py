@@ -1,6 +1,9 @@
 from flask import Flask, render_template, request, jsonify
 import pymongo
 from bson import json_util
+import datetime
+from g_storage import upload_data
+
 
 #  ALL CONFIGS
 host_url = '127.0.0.1'
@@ -46,6 +49,37 @@ def find_by_device_id():
     response_data = json_util.dumps(result)
 
     return jsonify(response_data)
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image part provided in request'})
+
+    image = request.files['image']
+
+    if image.filename == '':
+        return jsonify({'error': 'No selected image'})
+
+    if image:
+        try:
+            current_datetime = datetime.datetime.now()
+            date = current_datetime.strftime("%Y-%m-%d")
+            datetime_full = current_datetime.strftime("%Y-%m-%d %H:%M:%S")
+
+            filename = datetime_full + '_' + image.filename
+
+            image.save(filename)
+
+            device_id = "dev1"
+        except Exception as exc:
+            return jsonify({'error': 'save file failed'})
+
+        try:
+            upload_data(device_id, data_type="pics", file_path=filename, date_folder=date)
+        except Exception as exc:
+            return jsonify({'error': 'upload to bucket failed'})
+
+        return jsonify({'message': 'Image uploaded successfully'})
 
 if __name__ == '__main__':
     port = 5000
