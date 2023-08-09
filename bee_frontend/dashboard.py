@@ -38,8 +38,14 @@ def convert_and_get_data():
         weight = record['weight']
         temperature = record.get('temperature', None)  # Using the get method with a default value
         humidity = record.get('humidity', None)  # Using the get method with a default value
-
         battery = record['battery_level'] 
+        
+        if temperature == -200:
+            temperature = None  # Replace invalid temperature with None
+
+        if humidity == -200:
+            humidity = None  # Replace invalid humidity with None
+
         if 'location' in record:
             location = record['location']
             locations.append(location)
@@ -104,56 +110,75 @@ if hive_selection:
     # Assuming timestamps is a list of string timestamps
     formatted_timestamps = [datetime.strptime(value, '%Y-%m-%dT%H:%M:%S').strftime('%d-%m-%Y\n%H:%M:%S') for value in timestamps]
 
-    option = {
-        "title": {"text": "Hive Data Distribution"},
+    # Option for the weight chart
+    option_weight = {
+        "title": {"text": "Hive Weight Distribution"},
         "tooltip": {"trigger": "axis"},
         "xAxis": {
             "type": "category",
             "data": formatted_timestamps,
             "axisLabel": {
-                "rotate": 0,  # Rotation of the labels, can be adjusted
+                "rotate": 0,
             }
         },
-        "yAxis": [{
+        "yAxis": {
             "type": "value",
             "name": "Weight",
-            "position": "left"
-        }, {
-            "type": "value",
-            "name": "Temp",
-            "position": "right",
-            "offset": -5  # adjust as needed to place it in the center
-        }, {
-            "type": "value",
-            "name": "Humidity",
-            "position": "right",
-            "offset": 40  # adjust as needed to ensure no overlap
-        }],
-
-        "series": [
-            {"data": weights, "type": "line", "name": "Weight", "color": "#FF5733"},  # Example color
-            {"data": temperatures, "type": "line", "name": "Temperature", "yAxisIndex": 1, "color": "#33FF57"},  # Example color
-            {"data": humidities, "type": "line", "name": "Humidity", "yAxisIndex": 2, "color": "#3357FF"}  # Example color
-        ],
-
-        "legend": {
-            "data": ["Weight", "Temperature", "Humidity"],
-            "textStyle": {
-                "color": "#888888"  # gray color
-            }
         },
-
-
+        "series": [{"data": weights, "type": "line", "name": "Weight", "color": "#FF5733"}],
         "dataZoom": [{
             "type": 'slider',
             "start": 0,
             "end": 100
         }],
     }
+
+    # Option for the temperature and humidity chart
+    option_temp_humidity = {
+        "title": {"text": "Hive Temperature and Humidity Distribution"},
+        "tooltip": {"trigger": "axis"},
+        "xAxis": {
+            "type": "category",
+            "data": formatted_timestamps,
+            "axisLabel": {
+                "rotate": 0,
+            }
+        },
+        "yAxis": [
+            {
+                "type": "value",
+                "name": "Temp",
+                "position": "left",
+            },
+            {
+                "type": "value",
+                "name": "Humidity",
+                "position": "right",
+            }
+        ],
+        "series": [
+            {"data": temperatures, "type": "line", "name": "Temperature", "yAxisIndex": 0, "color": "#33FF57"},
+            {"data": humidities, "type": "line", "name": "Humidity", "yAxisIndex": 1, "color": "#3357FF"}
+        ],
+        "dataZoom": [{
+            "type": 'slider',
+            "start": 0,
+            "end": 100
+        }],
+    }
+
+    # Render the weight chart
+    st_echarts(options=option_weight, height="400px")
+
+    # Render the temperature and humidity chart
+    st_echarts(options=option_temp_humidity, height="400px")
+
+   
+    
     last_battery_level = batterys[-1] if batterys else None  # Retrieve the last battery level if the list is not empty
   
     #st.line_chart(weights, use_container_width=True)
-    st_echarts(options=option, height="400px")
+  #  st_echarts(options=option, height="400px")
     
     st.sidebar.metric(label="Battery level", value=f"{last_battery_level}%")
  
