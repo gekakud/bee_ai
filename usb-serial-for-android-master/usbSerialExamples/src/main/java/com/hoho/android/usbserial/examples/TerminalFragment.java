@@ -2,6 +2,8 @@ package com.hoho.android.usbserial.examples;
 
 import static android.content.ContentValues.TAG;
 
+import static kotlinx.coroutines.CoroutineScopeKt.CoroutineScope;
+
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -65,6 +67,15 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import kotlinx.coroutines.Dispatchers;
+import kotlinx.coroutines.GlobalScope;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
 
 public class TerminalFragment extends Fragment implements SerialInputOutputManager.Listener, LocationHelper.LocationCallback  {
 
@@ -122,7 +133,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     // Constants for video recording
     private static final int RECORDING_INTERVAL_MINUTES = 10;
     private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 60 * 1000;
-    private static final int RECORDING_DURATION_SECONDS = 5; 
+    private static final int RECORDING_DURATION_SECONDS = 5;
 
     private LocationHelper locationHelper;
     private Timer locationUpdateTimer;
@@ -133,6 +144,13 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private double currLongitude = 0.0;
 
     private TextView sendTextView;
+
+    private File imageFile;// = /* your image file */;
+    private File videoFile;
+    private OkHttpClient client;// = new OkHttpClient();
+    private String serverUrl = "http://34.165.42.165:5000/api/data";
+
+    private String PostImageUrl = "http://34.165.42.165:5000/api/upload";
 
 
 
@@ -161,6 +179,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         // For example:
         Log.d("MyApp", "Latitude: " + currLongitude + ", Longitude: " + currLatitude);
     }
+
+
+
 
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
 
@@ -227,10 +248,26 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
                     fos.write(data);
                     fos.close();
                     Log.d("YourFragment", "Picture saved: " + pictureFile.getAbsolutePath());
+                    // Send the image to the server on a separate thread
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                sendImageToServer(pictureFile); // Implement this function
+                                Log.d("YourFragment", "Image uploaded successfully");
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }).start();
+
+
                 } catch (IOException e) {
                     e.printStackTrace(); // Print the stack trace for debugging
                 }
             }
+
+
 
             // Restart the preview to continue taking pictures
             camera.setDisplayOrientation(90);
@@ -238,6 +275,33 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         }
     };
 
+
+    private void sendImageToServer(File imageFile){
+        // Create the request body
+        MultipartBody.Builder requestBodyBuilder = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("image", imageFile.getName(), RequestBody.create(MediaType.parse("image/jpeg"), imageFile));
+        RequestBody requestBody = requestBodyBuilder.build();
+
+        // Create the request
+        Request request = new Request.Builder()
+                .url(PostImageUrl)
+                .post(requestBody)
+                .build();
+
+        // Execute the request
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful()) {
+                String responseBody = response.body().string();
+                // Handle the response from the server
+            } else {
+                // Handle the error
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -460,6 +524,11 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         portNum = getArguments().getInt("port");
         baudRate = getArguments().getInt("baud");
         withIoManager = getArguments().getBoolean("withIoManager");
+
+
+        // Create an OkHttpClient instance
+        client = new OkHttpClient();
+
 
 
         // Initialize the LocationHelper with the context from the parent Activity and this as the callback listener
@@ -756,7 +825,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
 
             // Create the URL object for the API endpoint
-            URL url = new URL("http://34.165.42.165:5000/api/data");
+            URL url = new URL(serverUrl);
 
             // Create the HttpURLConnection object
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();

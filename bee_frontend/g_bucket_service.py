@@ -17,20 +17,31 @@ def download_image(url, local_path):
         with open(local_path, 'wb') as file:
             file.write(response.content)
 
+import datetime
+
 def get_image_urls():
     client = initialize_storage_client()
     bucket = client.get_bucket(bucket_name)
     
-    image_urls = []
+    image_links = []
     blobs = bucket.list_blobs()
 
     for blob in blobs:
-        # Check if the object is an image (you can customize this check based on your image file extensions)
         if blob.content_type.startswith('image/'):
-            image_url = f"https://storage.googleapis.com/{bucket_name}/{blob.name}"
-            image_urls.append(image_url)
+            # Extract the image name from the blob name
+            image_name = blob.name.split('/')[-1]
+            
+            # Set the expiration time and generate the signed URL
+            expiration_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
+            image_url = blob.generate_signed_url(expiration=expiration_time)
 
-    return image_urls
+            # Create a dictionary containing the image name and URL, or any other structure you prefer
+            image_link = {'name': image_name, 'url': image_url}
+            image_links.append(image_link)
+
+    return image_links
+
+
 
 # Example usage
 device_id = "dev1"

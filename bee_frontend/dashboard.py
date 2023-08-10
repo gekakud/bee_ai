@@ -174,9 +174,12 @@ if hive_selection:
 
     # Render the temperature and humidity chart
     st_echarts(options=option_temp_humidity, height="400px")
+            
+    image_links = get_image_urls()
 
-   
-    
+    for link in image_links:
+        st.markdown(f"[{link['name']}]({link['url']})")
+        
     last_battery_level = batterys[-1] if batterys else None  # Retrieve the last battery level if the list is not empty
   
     #st.line_chart(weights, use_container_width=True)
