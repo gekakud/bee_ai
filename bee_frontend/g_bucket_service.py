@@ -19,27 +19,30 @@ def download_image(url, local_path):
 
 import datetime
 
+from collections import defaultdict
+
 def get_image_urls():
     client = initialize_storage_client()
     bucket = client.get_bucket(bucket_name)
-    
-    image_links = []
+
+    images_by_date = defaultdict(list)
     blobs = bucket.list_blobs()
 
     for blob in blobs:
         if blob.content_type.startswith('image/'):
-            # Extract the image name from the blob name
-            image_name = blob.name.split('/')[-1]
-            
+            # Extract the date and image name from the blob name
+            parts = blob.name.split('/')
+            date = parts[-2]  # Assuming the date is the second last part of the blob name
+            image_name = parts[-1]
+
             # Set the expiration time and generate the signed URL
             expiration_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
             image_url = blob.generate_signed_url(expiration=expiration_time)
 
-            # Create a dictionary containing the image name and URL, or any other structure you prefer
-            image_link = {'name': image_name, 'url': image_url}
-            image_links.append(image_link)
+            # Append the image URL to the corresponding date's list
+            images_by_date[date].append({'name': image_name, 'url': image_url})
 
-    return image_links
+    return dict(images_by_date)
 
 
 

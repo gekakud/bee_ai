@@ -175,9 +175,15 @@ if hive_selection:
     # Render the temperature and humidity chart
     st_echarts(options=option_temp_humidity, height="400px")
             
-    image_links = get_image_urls()
+    # Get the images organized by date
+    images_by_date = get_image_urls()
 
-    for link in image_links:
+    # Create a dropdown menu for selecting a date
+    selected_date = st.selectbox('Choose a date', options=list(images_by_date.keys()))
+
+    # Display the images for the selected date
+    st.write(f"Images from {selected_date}:")
+    for link in images_by_date[selected_date]:
         st.markdown(f"[{link['name']}]({link['url']})")
         
     last_battery_level = batterys[-1] if batterys else None  # Retrieve the last battery level if the list is not empty
