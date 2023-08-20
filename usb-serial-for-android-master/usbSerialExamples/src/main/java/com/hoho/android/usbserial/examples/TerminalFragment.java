@@ -310,68 +310,28 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     }
 
-    private void sendVideoToServer(/*File videoFile*/) {
-        HttpURLConnection connection = null;
-        DataOutputStream outputStream = null;
-        String lineEnd = "\r\n";
-        String twoHyphens = "--";
-        String boundary = "*****";
-        int bytesRead, bytesAvailable, bufferSize;
-        byte[] buffer;
-        int maxBufferSize = 1 * 1024 * 1024; // 1MB
+    private void sendVideoToServer() {
+        // Create the request body
+        MultipartBody.Builder requestBodyBuilder = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("video", videoFile.getName(), RequestBody.create(MediaType.parse("video/mp4"), videoFile));
+        RequestBody requestBody = requestBodyBuilder.build();
 
-        try {
-            FileInputStream fileInputStream = null;
-            if (videoFile != null) {
-                fileInputStream = new FileInputStream(videoFile);
+        // Create the request
+        Request request = new Request.Builder()
+                .url(PostImageUrl)
+                .post(requestBody)
+                .build();
+
+        // Execute the request
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful()) {
+                String responseBody = response.body().string();
+                // Handle the response from the server
+            } else {
+                // Handle the error
             }
-
-            URL url = new URL(PostImageUrl);
-            connection = (HttpURLConnection) url.openConnection();
-
-            // Allow Inputs & Outputs
-            connection.setDoInput(true);
-            connection.setDoOutput(true);
-            connection.setUseCaches(false);
-
-            // Enable POST method
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Connection", "Keep-Alive");
-            connection.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
-
-            outputStream = new DataOutputStream(connection.getOutputStream());
-            outputStream.writeBytes(twoHyphens + boundary + lineEnd);
-            outputStream.writeBytes("Content-Disposition: form-data; name=\"uploadedfile\";filename=\"" + videoFile.getAbsolutePath() + "\"" + lineEnd);
-            outputStream.writeBytes(lineEnd);
-
-            bytesAvailable = fileInputStream.available();
-            bufferSize = Math.min(bytesAvailable, maxBufferSize);
-            buffer = new byte[bufferSize];
-
-            // Read file
-            bytesRead = fileInputStream.read(buffer, 0, bufferSize);
-            while (bytesRead > 0) {
-                outputStream.write(buffer, 0, bufferSize);
-                bytesAvailable = fileInputStream.available();
-                bufferSize = Math.min(bytesAvailable, maxBufferSize);
-                bytesRead = fileInputStream.read(buffer, 0, bufferSize);
-            }
-
-            outputStream.writeBytes(lineEnd);
-            outputStream.writeBytes(twoHyphens + boundary + twoHyphens + lineEnd);
-
-            // Responses from the server (code and message)
-            int serverResponseCode = connection.getResponseCode();
-            String serverResponseMessage = connection.getResponseMessage();
-
-            Log.i("Upload file to server", "HTTP Response is : " + serverResponseMessage + ": " + serverResponseCode);
-
-            // Close streams
-            fileInputStream.close();
-            outputStream.flush();
-            outputStream.close();
-        } catch (Exception e) {
-            // Handle the exception
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }

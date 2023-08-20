@@ -52,34 +52,49 @@ def find_by_device_id():
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image part provided in request'})
+    if 'image' not in request.files or 'video' not in request.files:
+        return jsonify({'error': 'No media part provided in request'})
 
-    image = request.files['image']
+    data_type = ''
+    try:
+        media_file = request.files['image']
+        data_type = 'pics'
+    except:
+        pass
 
-    if image.filename == '':
+    try:
+        media_file = request.files['video']
+        data_type = 'video'
+    except:
+        pass
+
+    if not media_file:
+        return jsonify({'error': 'cannot extract media payload'})
+
+    if media_file.filename == '':
         return jsonify({'error': 'No selected image'})
 
-    if image:
+    if media_file:
         try:
             current_datetime = datetime.datetime.now()
             date = current_datetime.strftime("%Y-%m-%d")
             datetime_full = current_datetime.strftime("%Y-%m-%d %H:%M:%S")
 
-            filename = datetime_full + '_' + image.filename
+            filename = datetime_full + '_' + media_file.filename
 
-            image.save(filename)
+            media_file.save(filename)
 
             device_id = "dev1"
         except Exception as exc:
+            print(str(exc))
             return jsonify({'error': 'save file failed'})
 
         try:
-            upload_data(device_id, data_type="pics", file_path=filename, date_folder=date)
+            upload_data(device_id, data_type=data_type, file_path=filename, date_folder=date)
         except Exception as exc:
             return jsonify({'error': 'upload to bucket failed'})
 
-        return jsonify({'message': 'Image uploaded successfully'})
+        return jsonify({'message': 'media_file uploaded successfully'})
 
 if __name__ == '__main__':
     port = 5000
