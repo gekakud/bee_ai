@@ -52,8 +52,8 @@ def find_by_device_id():
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    if 'image' not in request.files or 'video' not in request.files:
-        return jsonify({'error': 'No media part provided in request'})
+    if 'image' not in request.files and 'video' not in request.files:
+        return jsonify({'error': 'No media part provided in request'}), 400
 
     data_type = ''
     
@@ -65,10 +65,10 @@ def upload_file():
         data_type = 'video'
 
     if not media_file:
-        return jsonify({'error': 'cannot extract media payload'})
+        return jsonify({'error': 'cannot extract media payload'}), 400
 
     if media_file.filename == '':
-        return jsonify({'error': 'No selected image'})
+        return jsonify({'error': 'No selected image'}), 400
 
     if media_file:
         try:
@@ -83,14 +83,14 @@ def upload_file():
             device_id = "dev1"
         except Exception as exc:
             print(str(exc))
-            return jsonify({'error': 'save file failed'})
+            return jsonify({'error': 'save file failed'}), 400
 
         try:
             upload_data(device_id, data_type=data_type, file_path=filename, date_folder=date)
         except Exception as exc:
-            return jsonify({'error': 'upload to bucket failed'})
+            return jsonify({'error': 'upload to bucket failed'}), 400
 
-        return jsonify({'message': 'media_file uploaded successfully'})
+        return jsonify({'message': 'media_file uploaded successfully'}), 200
 
 if __name__ == '__main__':
     port = 5000
