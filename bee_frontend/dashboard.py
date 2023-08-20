@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from streamlit_echarts import st_echarts
 from g_bucket_service import get_image_urls
+from g_bucket_service import get_video_urls
 
 
 mongo_uri = "mongodb+srv://bee_admin:bee_admin_pass@atlascluster.d85negs.mongodb.net/?retryWrites=true&w=majority"
@@ -112,22 +113,29 @@ if hive_selection:
     # Assuming timestamps is a list of string timestamps
     formatted_timestamps = [datetime.strptime(value, '%Y-%m-%dT%H:%M:%S').strftime('%d-%m-%Y\n%H:%M:%S') for value in timestamps]
 
+    # Assuming timestamps is a list of string timestamps in the format '2023-08-09T10:58:14'
+    epoch_timestamps = [int(datetime.strptime(value, '%Y-%m-%dT%H:%M:%S').timestamp() * 1000) for value in timestamps]
+    
+    print("epoch",epoch_timestamps[0] )
+    print("original",timestamps[0] )
+
+    # Merge timestamps with corresponding values
+    series_weight = [{"value": [ts, w]} for ts, w in zip(timestamps, weights)]
+    series_temp = [{"value": [ts, t]} for ts, t in zip(timestamps, temperatures)]
+    series_humidity = [{"value": [ts, h]} for ts, h in zip(timestamps, humidities)]
     # Option for the weight chart
     option_weight = {
         "title": {"text": "Hive Weight Distribution"},
         "tooltip": {"trigger": "axis"},
         "xAxis": {
-            "type": "category",
-            "data": formatted_timestamps,
-            "axisLabel": {
-                "rotate": 0,
-            }
+            "type": "time",
+            # Removed "data" from here
         },
         "yAxis": {
             "type": "value",
             "name": "Weight",
         },
-        "series": [{"data": weights, "type": "line", "name": "Weight", "color": "#FF5733"}],
+        "series": [{"data": series_weight, "type": "line", "name": "Weight", "color": "#FF5733"}],
         "dataZoom": [{
             "type": 'slider',
             "start": 0,
@@ -140,11 +148,8 @@ if hive_selection:
         "title": {"text": "Hive Temperature and Humidity Distribution"},
         "tooltip": {"trigger": "axis"},
         "xAxis": {
-            "type": "category",
-            "data": formatted_timestamps,
-            "axisLabel": {
-                "rotate": 0,
-            }
+            "type": "time",
+            # Removed "data" from here
         },
         "yAxis": [
             {
@@ -159,8 +164,8 @@ if hive_selection:
             }
         ],
         "series": [
-            {"data": temperatures, "type": "line", "name": "Temperature", "yAxisIndex": 0, "color": "#33FF57"},
-            {"data": humidities, "type": "line", "name": "Humidity", "yAxisIndex": 1, "color": "#3357FF"}
+            {"data": series_temp, "type": "line", "name": "Temperature", "yAxisIndex": 0, "color": "#33FF57"},
+            {"data": series_humidity, "type": "line", "name": "Humidity", "yAxisIndex": 1, "color": "#3357FF"}
         ],
         "dataZoom": [{
             "type": 'slider',
@@ -175,16 +180,34 @@ if hive_selection:
     # Render the temperature and humidity chart
     st_echarts(options=option_temp_humidity, height="400px")
             
-    # Get the images organized by date
-    images_by_date = get_image_urls()
+   # Get the images organized by date
+images_by_date = get_image_urls()
 
-    # Create a dropdown menu for selecting a date
-    selected_date = st.selectbox('Choose a date', options=list(images_by_date.keys()))
+# Create a dropdown menu for selecting a date for images
+selected_image_date = st.selectbox('Choose a date for images', options=list(images_by_date.keys()) or ["No available images"])
 
+if selected_image_date != "No available images":
     # Display the images for the selected date
-    st.write(f"Images from {selected_date}:")
-    for link in images_by_date[selected_date]:
+    st.write(f"Images from {selected_image_date}:")
+    for link in images_by_date[selected_image_date]:
         st.markdown(f"[{link['name']}]({link['url']})")
+
+
+# Get the videos organized by date
+videos_by_date = get_video_urls()
+
+# Create a dropdown menu for selecting a date for videos
+selected_video_date = st.selectbox('Choose a date for videos', options=list(videos_by_date.keys()) or ["No available videos"])
+
+if selected_video_date != "No available videos":
+    # Display the videos for the selected date
+    st.write(f"Videos from {selected_video_date}:")
+    for link in videos_by_date[selected_video_date]:
+        st.markdown(f"[{link['name']}]({link['url']})")
+
+    
+    
+    
         
     last_battery_level = batterys[-1] if batterys else None  # Retrieve the last battery level if the list is not empty
   

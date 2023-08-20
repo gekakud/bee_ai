@@ -52,7 +52,9 @@ import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
 import org.json.JSONObject;
 
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -125,15 +127,18 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     private boolean isTakingPictures = false;
     private Handler pictureHandler = new Handler(Looper.getMainLooper());
-    private int intervalInSeconds = 7;
+
+    // Constants for picture taking
+    private static final int PICTURE_INTERVAL_MINUTES = 7;
+    private static final long PICTURE_INTERVAL_MS = PICTURE_INTERVAL_MINUTES * 60 * 1000;
 
 
     private boolean isRecording = false;
 
     // Constants for video recording
-    private static final int RECORDING_INTERVAL_MINUTES = 10;
-    private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 60 * 1000;
+    private static final int RECORDING_INTERVAL_MINUTES = 1;
     private static final int RECORDING_DURATION_SECONDS = 5;
+    private static final long RECORDING_INTERVAL_MS = RECORDING_INTERVAL_MINUTES * 60 * 1000;
 
     private LocationHelper locationHelper;
     private Timer locationUpdateTimer;
@@ -145,8 +150,8 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
     private TextView sendTextView;
 
-    private File imageFile;// = /* your image file */;
-    private File videoFile;
+ //   private File imageFile;// = /* your image file */;
+    private File videoFile = null;
     private OkHttpClient client;// = new OkHttpClient();
     private String serverUrl = "http://34.165.42.165:5000/api/data";
 
@@ -179,9 +184,6 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         // For example:
         Log.d("MyApp", "Latitude: " + currLongitude + ", Longitude: " + currLatitude);
     }
-
-
-
 
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
 
@@ -225,22 +227,27 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         public void run() {
             if (isTakingPictures) {
                 takePicture();
-                pictureHandler.postDelayed(this, intervalInSeconds * 1000);
+                pictureHandler.postDelayed(this, PICTURE_INTERVAL_MS);
             }
         }
     };
 
     private void takePicture() {
         if (camera != null) {
+            // Adjust camera parameters for zoom
+            Camera.Parameters parameters = camera.getParameters();
+            parameters.setZoom(40); // This value may need to be adjusted based on your camera's parameters
+            camera.setParameters(parameters);
             camera.takePicture(null, null, pictureCallback);
         }
     }
 
-
     private Camera.PictureCallback pictureCallback = new Camera.PictureCallback() {
         @Override
         public void onPictureTaken(byte[] data, Camera camera) {
+
             // Save the image data to a file
+
             File pictureFile = getOutputMediaFile(false);
             if (pictureFile != null) {
                 try {
@@ -302,6 +309,74 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         }
 
     }
+
+    private void sendVideoToServer(/*File videoFile*/) {
+        HttpURLConnection connection = null;
+        DataOutputStream outputStream = null;
+        String lineEnd = "\r\n";
+        String twoHyphens = "--";
+        String boundary = "*****";
+        int bytesRead, bytesAvailable, bufferSize;
+        byte[] buffer;
+        int maxBufferSize = 1 * 1024 * 1024; // 1MB
+
+        try {
+            FileInputStream fileInputStream = null;
+            if (videoFile != null) {
+                fileInputStream = new FileInputStream(videoFile);
+            }
+
+            URL url = new URL(PostImageUrl);
+            connection = (HttpURLConnection) url.openConnection();
+
+            // Allow Inputs & Outputs
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+            connection.setUseCaches(false);
+
+            // Enable POST method
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Connection", "Keep-Alive");
+            connection.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
+
+            outputStream = new DataOutputStream(connection.getOutputStream());
+            outputStream.writeBytes(twoHyphens + boundary + lineEnd);
+            outputStream.writeBytes("Content-Disposition: form-data; name=\"uploadedfile\";filename=\"" + videoFile.getAbsolutePath() + "\"" + lineEnd);
+            outputStream.writeBytes(lineEnd);
+
+            bytesAvailable = fileInputStream.available();
+            bufferSize = Math.min(bytesAvailable, maxBufferSize);
+            buffer = new byte[bufferSize];
+
+            // Read file
+            bytesRead = fileInputStream.read(buffer, 0, bufferSize);
+            while (bytesRead > 0) {
+                outputStream.write(buffer, 0, bufferSize);
+                bytesAvailable = fileInputStream.available();
+                bufferSize = Math.min(bytesAvailable, maxBufferSize);
+                bytesRead = fileInputStream.read(buffer, 0, bufferSize);
+            }
+
+            outputStream.writeBytes(lineEnd);
+            outputStream.writeBytes(twoHyphens + boundary + twoHyphens + lineEnd);
+
+            // Responses from the server (code and message)
+            int serverResponseCode = connection.getResponseCode();
+            String serverResponseMessage = connection.getResponseMessage();
+
+            Log.i("Upload file to server", "HTTP Response is : " + serverResponseMessage + ": " + serverResponseCode);
+
+            // Close streams
+            fileInputStream.close();
+            outputStream.flush();
+            outputStream.close();
+        } catch (Exception e) {
+            // Handle the exception
+            e.printStackTrace();
+        }
+    }
+
+
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -319,6 +394,8 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private Runnable recordingRunnable = new Runnable() {
         @Override
         public void run() {
+            Camera.Parameters parameters = camera.getParameters();
+            parameters.setZoom(40); // This value may need to be adjusted based on your camera's parameters
             startVideoRecording();
             recordingHandler.postDelayed(this, RECORDING_INTERVAL_MS);
         }
@@ -373,6 +450,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         mediaRecorder.setVideoFrameRate(60); // Adjust as per your requirement
 
         // Step 4: Set the output file path
+        videoFile = getOutputMediaFile(true);
         videoFilePath = getOutputMediaFile(true).toString();
         mediaRecorder.setOutputFile(videoFilePath);
 
@@ -435,20 +513,46 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         }
     }
 
+    // Stop recording and release resources
+    private void stopRecording() {
+        if (mediaRecorder != null) {
+            mediaRecorder.stop();
+            mediaRecorder.release();
+            mediaRecorder = null;
+            camera.lock();
+        }
+    }
+
     private Runnable stopRecordingRunnable = new Runnable() {
         @Override
         public void run() {
             if (isRecording) {
                 try {
                     // Stop the recording and reset the flag.
-                    mediaRecorder.stop();
+                    stopRecording();
                     isRecording = false;
                 } catch (IllegalStateException e) {
                     // Handle any exceptions while stopping recording.
                     e.printStackTrace();
                 }
-                // Release the MediaRecorder resources.
-                releaseMediaRecorder();
+
+    //            File videoFile = getOutputMediaFile(true);
+                if (videoFile != null) {
+
+                    // Send the video to the server on a separate thread
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                sendVideoToServer(/*videoFile*/); // Implement this function
+                                Log.d("YourFragment", "Image uploaded successfully");
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }).start();
+                }
+
             }
         }
     };

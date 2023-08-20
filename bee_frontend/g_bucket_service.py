@@ -44,6 +44,28 @@ def get_image_urls():
 
     return dict(images_by_date)
 
+def get_video_urls():
+    client = initialize_storage_client()
+    bucket = client.get_bucket(bucket_name)
+
+    videos_by_date = defaultdict(list)
+    blobs = bucket.list_blobs()
+
+    for blob in blobs:
+        if blob.content_type.startswith('video/'):
+            # Extract the date and video name from the blob name
+            parts = blob.name.split('/')
+            date = parts[-2]  # Assuming the date is the second last part of the blob name
+            video_name = parts[-1]
+
+            # Set the expiration time and generate the signed URL
+            expiration_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
+            video_url = blob.generate_signed_url(expiration=expiration_time)
+
+            # Append the video URL to the corresponding date's list
+            videos_by_date[date].append({'name': video_name, 'url': video_url})
+
+    return dict(videos_by_date)
 
 
 # Example usage
