@@ -56,17 +56,13 @@ def upload_file():
         return jsonify({'error': 'No media part provided in request'})
 
     data_type = ''
-    try:
+    
+    if 'image' in request.files:
         media_file = request.files['image']
         data_type = 'pics'
-    except:
-        pass
-
-    try:
+    else:
         media_file = request.files['video']
         data_type = 'video'
-    except:
-        pass
 
     if not media_file:
         return jsonify({'error': 'cannot extract media payload'})
