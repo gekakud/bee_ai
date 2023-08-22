@@ -52,9 +52,8 @@ import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
 import org.json.JSONObject;
 
-import java.io.DataOutputStream;
+
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -132,6 +131,8 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
     private static final int PICTURE_INTERVAL_MINUTES = 7;
     private static final long PICTURE_INTERVAL_MS = PICTURE_INTERVAL_MINUTES * 60 * 1000;
 
+    private static List<Camera.Size> supportedVideoSizes;
+    private static Camera.Size maxVideoSize;
 
     private boolean isRecording = false;
 
@@ -277,7 +278,7 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
 
             // Restart the preview to continue taking pictures
-            camera.setDisplayOrientation(90);
+            //camera.setDisplayOrientation(90);
             camera.startPreview();
         }
     };
@@ -402,14 +403,17 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
 
-        // Step 3: Set the video output format and encoding parameters
-        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-        mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT);
-        mediaRecorder.setVideoEncodingBitRate(20000000); // Adjust as per your requirement
-        mediaRecorder.setVideoFrameRate(60); // Adjust as per your requirement
+       // Step 3: Set the video output format and encoding parameters
+       mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+       mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+       mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264); // or MediaRecorder.VideoEncoder.HEVC
+       mediaRecorder.setVideoEncodingBitRate(80000000); // Adjust as per your requirement
+       mediaRecorder.setVideoFrameRate(30); // Adjust as per your requirement
+       // Choose the maximum supported video size
+       mediaRecorder.setVideoSize(maxVideoSize.width, maxVideoSize.height);
 
-        // Step 4: Set the output file path
+
+       // Step 4: Set the output file path
         videoFile = getOutputMediaFile(true);
         videoFilePath = getOutputMediaFile(true).toString();
         mediaRecorder.setOutputFile(videoFilePath);
@@ -743,17 +747,23 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
                     // Open the camera
                     camera = camera.open();
-                    camera.setDisplayOrientation(90);
 
                     // Set the camera parameters
                     Camera.Parameters parameters = camera.getParameters();
+                    supportedVideoSizes = parameters.getSupportedVideoSizes();
+                    maxVideoSize = chooseMaximumSupportedVideoSize();
+
                     Camera.Size previewSize = getOptimalPreviewSize(parameters.getSupportedPreviewSizes(), mPreview.getWidth(), mPreview.getHeight());
                     parameters.setPreviewSize(previewSize.width, previewSize.height);
+
+                    //parameters.setPreviewSize(800, 600);
                     camera.setParameters(parameters);
+
+
 
                     // Set the camera preview display
                     camera.setPreviewDisplay(mPreviewHolder);
-                    camera.setDisplayOrientation(90);
+                    //camera.setDisplayOrientation(90);
                     camera.startPreview();
 
                 } catch (IOException e) {
@@ -761,6 +771,9 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
                     Toast.makeText(getContext(), "Error setting up camera preview!", Toast.LENGTH_SHORT).show();
                 }
             }
+
+
+
 
             @Override
             public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
@@ -785,7 +798,20 @@ public class TerminalFragment extends Fragment implements SerialInputOutputManag
 
         return view;
     }
+    private Camera.Size chooseMaximumSupportedVideoSize() {
+        Camera.Size maxSize = null;
+        long maxArea = 0;
 
+        for (Camera.Size size : supportedVideoSizes) {
+            long area = size.width * size.height;
+            if (area > maxArea) {
+                maxArea = area;
+                maxSize = size;
+            }
+        }
+
+        return maxSize;
+    }
 
     @Override
     public void onCreateOptionsMenu(@NonNull Menu menu, MenuInflater inflater) {
